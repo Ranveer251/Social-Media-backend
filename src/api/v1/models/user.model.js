@@ -31,17 +31,26 @@ const userSchema = new mongoose.Schema({
     name: {
         type: String,
         maxlength: 128,
-        trim: true,
-        index: true
+        trim: true
+    },
+    public: {
+      type: Boolean,
+      default: false
     },
     email_verified: {
         type: Boolean,
         default: false
     },
-    phoneNumber: {
-        type: String,
-        match: /^(\+\d{1,2}\s?)?1?\-?\.?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/
+    profilePic: {
+      type: String
     },
+    friends: {
+      type: [{type: mongoose.Schema.Types.ObjectId, ref: 'Friend'}]
+    },
+    // phoneNumber: {
+    //     type: String,
+    //     match: /^(\+\d{1,2}\s?)?1?\-?\.?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/
+    // },
     createdAt: {
         type: Date
     }, 
@@ -49,6 +58,8 @@ const userSchema = new mongoose.Schema({
         type: Date
     }
 })
+
+userSchema.index({name: 'text', userName: 'text', email: 'text'});
 
 userSchema.pre('save', async function save(next) {
     try {
@@ -68,7 +79,7 @@ userSchema.pre('save', async function save(next) {
 userSchema.method({
     transform() {
       const transformed = {};
-      const fields = ['id', 'name', 'email','userName', 'phoneNumber', 'createdAt', "updatedAt"];
+      const fields = ['id', 'name', 'email','userName', 'public', 'friends', 'profilePic', 'email_verified', 'createdAt', "updatedAt"];
   
       fields.forEach((field) => {
         transformed[field] = this[field];

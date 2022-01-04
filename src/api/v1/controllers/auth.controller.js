@@ -4,8 +4,8 @@ const VerifyToken = require('../models/verifyEmailToken.model')
 const PasswordResetToken = require('../models/passwordResetToken.model')
 const moment = require('moment-timezone')
 const {sendEmailVerification, sendPasswordResetEmail} = require('../services/emailProvider')
-const { jwtExpirationInterval, refreshSecret } = require('../../../config/vars');
-const { passwordReset } = require('../validations/auth.validation');
+const { jwtExpirationInterval } = require('../../../config/vars');
+
 
 function generateTokenResponse(user, accessToken) {
     const tokenType = 'Bearer';
@@ -26,20 +26,29 @@ const register = async (req,res,next) => {
         let user = await User.findOne({"email": email}).exec();
         if(user && user.email_verified===true) {
             return res.status(409).json({
-                error: "User alredy exists with the given email"
+                success: false,
+                msg: "User alredy exists with the given email"
             }) 
         }
+        user = await User.findOne({"userName": userData.userName}).exec();
+        if(user) {
+            return res.status(409).json({
+                success: false,
+                msg: "Username already taken"
+            })
+        }
+        userData.createdAt = new Date();
+        userData.updatedAt = new Date();
         user = await new User(userData).save();
         // console.log(user);
         verifyTokenObject = await VerifyToken.generate(user);
         sendEmailVerification(verifyTokenObject);
-        const userTransformed = user.transform();
         const token = generateTokenResponse(user, user.token());
         return res.status(201).json({ 
             success: true,
             msg: "User Registered Successfully",
             token: token, 
-            user: userTransformed 
+            user: user 
         });
     } catch(err){
         return next(err);
@@ -50,12 +59,11 @@ const login = async (req,res,next) => {
     try{
         const {user, accessToken} = await User.findAndGenerateToken(req.body);
         const token = generateTokenResponse(user, accessToken);
-        const userTransformed = user.transform();
         return res.status(200).json({ 
             success:true,
             msg: "Login Successfull",
             token: token, 
-            user: userTransformed });
+            user: user });
     } catch(err){
         return next(err);
     }

@@ -15,7 +15,6 @@ const authorize = (req,res,next) => {
         req.userId = payload.id;
         next()
     })
-
 }
 
 module.exports = authorize;
