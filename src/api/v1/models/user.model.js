@@ -33,6 +33,11 @@ const userSchema = new mongoose.Schema({
         maxlength: 128,
         trim: true
     },
+    bio: {
+      type: String,
+      maxlength: 512,
+      trim: true
+    },
     public: {
       type: Boolean,
       default: false
@@ -41,16 +46,34 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    phoneNumber: {
+      type: String,
+      match: /^(\+\d{1,2}\s?)?1?\-?\.?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/
+    },
+    college: {
+      type: String
+    },
+    city: {
+      type: String
+    },
+    state: {
+      type: String
+    },
+    country: {
+      type: String
+    },
     profilePic: {
       type: String
     },
     friends: {
-      type: [{type: mongoose.Schema.Types.ObjectId, ref: 'Friend'}]
+      type: [{type: mongoose.Schema.Types.ObjectId, ref: 'User'}]
     },
-    // phoneNumber: {
-    //     type: String,
-    //     match: /^(\+\d{1,2}\s?)?1?\-?\.?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/
-    // },
+    friendRequests: {
+      type: [{type: mongoose.Schema.Types.ObjectId, ref: 'FriendRequest'}]
+    },
+    blocked: {
+      type: [{type: mongoose.Schema.Types.ObjectId, ref:'User'}]
+    },
     createdAt: {
         type: Date
     }, 
@@ -175,33 +198,14 @@ userSchema.statics = {
     const user = await User.findOneAndUpdate({email: email},{$set:{passwordHash: hash}},{new:true}).exec();
   },
 
-  // list({
-  //   page = 1, perPage = 30, name, email, role,
-  // }) {
-  //   const options = omitBy({ name, email, role }, isNil);
-
-  //   return this.find(options)
-  //     .sort({ createdAt: -1 })
-  //     .skip(perPage * (page - 1))
-  //     .limit(perPage)
-  //     .exec();
-  // },
-
-  // async oAuthLogin({
-  //   service, id, email, name, picture,
-  // }) {
-  //   const user = await this.findOne({ $or: [{ [`services.${service}`]: id }, { email }] });
-  //   if (user) {
-  //     user.services[service] = id;
-  //     if (!user.name) user.name = name;
-  //     if (!user.picture) user.picture = picture;
-  //     return user.save();
-  //   }
-  //   const password = uuidv4();
-  //   return this.create({
-  //     services: { [service]: id }, email, password, name, picture,
-  //   });
-  // },
+  list({page, perPage, searchString}) {
+    return this.find({$text: {$search: searchString}},{ score: { $meta: "textScore" } })
+      .sort( { score: { $meta: "textScore" } } )
+      .select({'name':1, 'userName':1, 'email':1, 'profilePic':1})
+      .skip(perPage*(page-1))
+      .limit(perPage)
+      .exec();
+  },
 };
 
 const User = mongoose.model('User',userSchema);

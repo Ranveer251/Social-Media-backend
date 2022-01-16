@@ -19,4 +19,8 @@ app.use(function(err, req, res, next) {
   return res.status(500).json(err)
 })
 
+app.all('*',(req,res)=> {
+  res.sendStatus(404);
+});
+
 module.exports = app;
