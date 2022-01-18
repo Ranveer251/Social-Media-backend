@@ -1,10 +1,9 @@
-const {emailConfig} = require('../../../config/vars')
 const {email_api_url} = require('../../../config/strings')
 const axios = require('axios');
 const {baseUrl} = require('../../../config/strings')  // frontend base url
 
 const sendEmailVerification = async (tokenObject) => {
-    const link = baseUrl+`emailVerification/view?id=${tokenObject.userId}&token=${tokenObject.token}`
+    const link = baseUrl+`/emailVerification/view?id=${tokenObject.userId}&token=${tokenObject.token}`
     var text = `This mail is regarding the verification of the EMAIL \n\n Open this link ${link} to verify your account. \n\n This link will only be valid for 1 hour \n\nIgnore if already verified`;
 
     let html = `<!DOCTYPE html>
@@ -45,7 +44,7 @@ const sendEmailVerification = async (tokenObject) => {
 }
 
 const sendPasswordResetEmail = (tokenObject) => {
-    const link = baseUrl + `newPassword/view?resetToken=${tokenObject.token}`
+    const link = baseUrl + `/newPassword/view?resetToken=${tokenObject.token}`
     var text = `A password reset request has been made for your Account\n\nOpen this link to reset your password: ${link}\nThis link will only be valid for 1 hour.\n\n Please change your password to secure your account if this request was not made by you`;
 
     let html = `<!DOCTYPE html>

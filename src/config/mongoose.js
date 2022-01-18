@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const APIError = require('../api/v1/errors/api-error');
 const { mongo, env } = require('./vars');
 
 // print mongoose logs in dev env
@@ -13,6 +14,13 @@ exports.connect = () => {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     })
-    .then(() => console.log('mongoDB connected...'));
+    .then(() => console.log('mongoDB connected...'))
+    .catch((err) => {
+      console.log(err);
+      throw new APIError({
+        message: 'Database Not connected',
+        status: 500,
+      });
+    });
   return mongoose.connection;
 };

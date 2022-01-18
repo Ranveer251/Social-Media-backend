@@ -11,6 +11,8 @@ const router = express.Router();
 
 router.route('/').get(authorize,validate(search),controller.getUsers);
 
+router.route('/images').patch(authorize,controller.uploadProfilePic,controller.editProfile);
+
 router.route('/friends').get(authorize,controller.getAllFriends);
 
 router.route('/friends/request').post(authorize,controller.sendFriendRequest);
@@ -29,7 +31,7 @@ router.route('/block').get(authorize,controller.getAllBlockedUsers);
 
 router.route('/block').delete(authorize,controller.unblockUser);
 
-// router.route('/friends/suggestions').get(authorize,controller.suggestFriends);
+router.route('/friends/suggestions').get(authorize,controller.suggestFriends);
 
 router.route('/:id').get(authorize,controller.getProfile);
 

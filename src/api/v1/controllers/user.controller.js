@@ -1,5 +1,7 @@
+const { photos_api_url } = require("../../../config/strings");
 const FriendRequest = require("../models/friendRequest.model");
 const User = require("../models/user.model");
+const { uploadFile } = require("../services/photo");
 
 const getProfile = async (req,res,next) => {
     try {
@@ -30,10 +32,11 @@ const getProfile = async (req,res,next) => {
 
 const editProfile = async (req,res,next) => {
     try {
+        console.log("here");
         const {id} = req.params;
         if(id!==req.userId) return res.status(400).json({
             success: false,
-            msg: "Cannot Edit Other's Account"
+            msg: "Cannot Edit Others Account"
         })
         req.body.updatedAt = new Date();
         const user = await User.findByIdAndUpdate(id,req.body,{new:true}).exec();
@@ -59,7 +62,7 @@ const getUsers = async (req,res,next) => {
         const perPage = req.params.perPage ? req.params.perPage : 20;
         const docs = await User.list(page,perPage,searchString);
         // console.log(docs);
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             msg: "Search Results",
             results: docs
@@ -69,11 +72,30 @@ const getUsers = async (req,res,next) => {
     }
 }
 
+const uploadProfilePic = async (req,res,next) => {
+    try {
+        console.log(req.file);
+        const link = await uploadFile(req.file);
+        console.log(link);
+        req.body.profilePic = link;
+        req.params.id = req.userId;
+        next();
+    } catch (err) {
+        return next(err);
+    }
+};
+
 const sendFriendRequest = async (req,res,next) => {
     try {
         const {reqId} = req.body;
         const id = req.userId;
         const userB = await User.findById(reqId).exec();
+        if(userB.blocked.includes(id)){
+            return res.status(200).json({
+                success: true,
+                msg: "User Blocked by the reciepient user"
+            })
+        }
         const doc = await FriendRequest.findOne({
             requester: id,
             recipient: reqId,
@@ -350,84 +372,59 @@ const unblockUser = async (req,res,next) => {
     }
 }
 
-// const suggestFriends = async (req,res,next) => {
-//     try {
-//         const id = req.userId;
-//         const page = req.params.page ? req.params.page : 1;
-//         const limit = req.params.perPage ? req.params.perPage : 20;
-//         const skip = limit*(page-1);
-//         const user = await User.findById(id).select('friends').exec();
-//         let suggestions = [];
-//         const friendIds = user.friends;
-//         // console.log(friendIds);
-//         if(friendIds.length){
-//             Promise.all(friendIds.map(async fid => {
-//                 return User.findById(fid).select('friends').exec();
-//                 // console.log(friend);
-//                 // let friendsOfFriend = friend.friends;
-//                 // suggestions = [...new Set([...suggestions,...friendsOfFriend])];
-//                 // console.log(suggestions);
-//             })).then( friends => {
-//                 friends.forEach(friend => {
-//                     let friendsOfFriend = friend.friends; 
-//                     suggestions = [...new Set([...suggestions,...friendsOfFriend])];
-//                 });
-//                 console.log(suggestions);
-//             }).catch(err => {
-//                 console.log(err);
-//             })
-//             console.log(suggestions);
-//             return res.status(200).json({
-//                 success: true,
-//                 msg: "List of Friend Suggestions",
-//                 results: suggestions
-//             })
-//         }
-//         // console.log(user);
-//             // .populate({
-//             //     path: "friends",
-//             //     model: User,
-//             //     select: "friends",
-//             //     populate: {
-//             //         path: "friends",
-//             //         model: User,
-//             //         select: "name userName email profilePic bio"
-//             //     },
-//             // })
-//             // .skip(100*(page-1))
-//             // .limit(100)
-//             // .exec()
-
-//         // const users = await User.find({$or: [{college: user.college},{city: user.city}] })
-//         //     .select('name userName email profilePic bio')
-//         //     .skip(100*(page-1))
-//         //     .limit(100)
-//         //     .exec();
-//         // const friends = [];
-//         // user.friends.forEach(el => {
-//         //     el.friends.forEach(el1 => {
-//         //         if(!user.friends.includes(el)){
-//         //             friends.push(el1); 
-//         //         }
-//         //     });
-//         // });
-//         // console.log(friends);
-//         // const suggestions = [users, user.friends.friends].slice(skip,skip+limit);
-//         return res.status(400).json({
-//             success: false,
-//             msg: "List of Friend Suggestions not found",
-//             results: suggestions
-//         })
-//     } catch (err) {
-//         console.log(err);
-//         return next(err);
-//     }
-// }
+const suggestFriends = async (req,res,next) => {
+    try {
+        const id = req.userId;
+        const page = req.params.page ? req.params.page : 1;
+        const limit = req.params.perPage ? req.params.perPage : 20;
+        const skip = limit*(page-1);
+        const user = await User.findById(id).select('friends').exec();
+        let suggestions = [];
+        //college or city
+        let users = await User.find({$and: [
+                {_id: {$nin: user.friends}},
+                {_id: {$ne: id}},
+                {$or: [{'college': user.college},{'city': user.city}]}
+            ]})
+            .select('_id')
+            .skip(0.4*skip)
+            .limit(0.4*limit)
+            .exec();
+        users = users.map((el) => el._id);
+        suggestions = [...new Set([...suggestions,...users])];
+        //friends of friends
+        const friendIds = user.friends;
+        if(friendIds.length){
+            Promise.all(friendIds.map(async fid => {
+                return User.findById(fid).select('friends').exec();
+            })).then( friends => {
+                friends.forEach(friend => {
+                    let friendsOfFriend = friend.friends; 
+                    suggestions = [...new Set([...suggestions,...friendsOfFriend])];
+                });
+                suggestions = suggestions.slice(0,limit);
+            }).then(() => {
+                res.status(200).json({
+                    success: true,
+                    msg: "Friend suggestions",
+                    suggestions: suggestions
+                })
+            })
+            .catch(err => {
+                console.log(err);
+            })
+        }
+    } catch (err) {
+        console.log(err);
+        return next(err);
+    }
+}
 
 module.exports = {
     getProfile,
     editProfile,
     getUsers,
+    uploadProfilePic,
     sendFriendRequest,
     acceptFriendRequest,
     rejectFriendRequest,
@@ -437,5 +434,5 @@ module.exports = {
     blockUser,
     getAllBlockedUsers,
     unblockUser,
-    // suggestFriends
+    suggestFriends
 }
