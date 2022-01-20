@@ -1,7 +1,5 @@
-const { photos_api_url } = require("../../../config/strings");
 const FriendRequest = require("../models/friendRequest.model");
 const User = require("../models/user.model");
-const { uploadFile } = require("../services/photo");
 
 const getProfile = async (req,res,next) => {
     try {
@@ -71,19 +69,6 @@ const getUsers = async (req,res,next) => {
         return next(err);
     }
 }
-
-const uploadProfilePic = async (req,res,next) => {
-    try {
-        console.log(req.file);
-        const link = await uploadFile(req.file);
-        console.log(link);
-        req.body.profilePic = link;
-        req.params.id = req.userId;
-        next();
-    } catch (err) {
-        return next(err);
-    }
-};
 
 const sendFriendRequest = async (req,res,next) => {
     try {
@@ -378,44 +363,16 @@ const suggestFriends = async (req,res,next) => {
         const page = req.params.page ? req.params.page : 1;
         const limit = req.params.perPage ? req.params.perPage : 20;
         const skip = limit*(page-1);
-        const user = await User.findById(id).select('friends').exec();
-        let suggestions = [];
-        //college or city
-        let users = await User.find({$and: [
-                {_id: {$nin: user.friends}},
-                {_id: {$ne: id}},
-                {$or: [{'college': user.college},{'city': user.city}]}
-            ]})
-            .select('_id')
-            .skip(0.4*skip)
-            .limit(0.4*limit)
-            .exec();
-        users = users.map((el) => el._id);
-        suggestions = [...new Set([...suggestions,...users])];
-        //friends of friends
-        const friendIds = user.friends;
-        if(friendIds.length){
-            Promise.all(friendIds.map(async fid => {
-                return User.findById(fid).select('friends').exec();
-            })).then( friends => {
-                friends.forEach(friend => {
-                    let friendsOfFriend = friend.friends; 
-                    suggestions = [...new Set([...suggestions,...friendsOfFriend])];
-                });
-                suggestions = suggestions.slice(0,limit);
-            }).then(() => {
-                res.status(200).json({
-                    success: true,
-                    msg: "Friend suggestions",
-                    suggestions: suggestions
-                })
-            })
-            .catch(err => {
-                console.log(err);
-            })
-        }
+        const user = await User.findById(id).exec();
+        console.log(user);
+        let suggestions = await user.suggestFriends();
+        console.log(suggestions);
+        return res.status(200).json({
+            success: true,
+            msg: "Friend suggestions",
+            suggestions: suggestions
+        })
     } catch (err) {
-        console.log(err);
         return next(err);
     }
 }
@@ -424,7 +381,6 @@ module.exports = {
     getProfile,
     editProfile,
     getUsers,
-    uploadProfilePic,
     sendFriendRequest,
     acceptFriendRequest,
     rejectFriendRequest,
@@ -434,5 +390,5 @@ module.exports = {
     blockUser,
     getAllBlockedUsers,
     unblockUser,
-    suggestFriends
+    suggestFriends,
 }

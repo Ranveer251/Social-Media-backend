@@ -11,8 +11,6 @@ const router = express.Router();
 
 router.route('/').get(authorize,validate(search),controller.getUsers);
 
-router.route('/images').patch(authorize,controller.uploadProfilePic,controller.editProfile);
-
 router.route('/friends').get(authorize,controller.getAllFriends);
 
 router.route('/friends/request').post(authorize,controller.sendFriendRequest);

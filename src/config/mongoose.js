@@ -17,10 +17,7 @@ exports.connect = () => {
     .then(() => console.log('mongoDB connected...'))
     .catch((err) => {
       console.log(err);
-      throw new APIError({
-        message: 'Database Not connected',
-        status: 500,
-      });
+      process.exit();
     });
   return mongoose.connection;
 };

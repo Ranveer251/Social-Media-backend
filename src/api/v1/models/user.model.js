@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { ObjectId } = mongoose.Types;
 const bcrypt = require('bcryptjs');
 const APIError = require('../errors/api-error');
 const moment = require('moment-timezone');
@@ -124,6 +125,69 @@ userSchema.method({
       return bcrypt.compare(password, this.passwordHash);
     },
 
+    async suggestFriends () {
+      const userId = this._id
+      console.log(userId);
+      try {
+        const suggestions = await User.aggregate([
+          {
+            $match: {
+              _id: ObjectId(userId)
+            }
+          },
+          {
+            $graphLookup: {
+              from: 'users',
+              startWith: '$friends',
+              connectFromField: 'friends',
+              connectToField: '_id',
+              as: 'suggestions',
+              maxDepth: 1
+            }
+          },
+          {
+            $unwind: {
+              path: '$suggestions',
+              preserveNullAndEmptyArrays: true
+            }
+          },
+          {
+            $match: {
+              $expr: {
+                $not: {
+                  $in: ['$suggestions._id', '$friends']
+                }
+              }
+            }
+          },
+          {
+            $match: {
+              $expr: {
+                $not: {
+                  $in: ['$suggestions._id', [ObjectId(userId)]]
+                }
+              }
+            }
+          },
+          { $replaceRoot: { newRoot: '$suggestions' } },
+          {
+            $project: {
+              email: false,
+              passwordHash: false,
+              email_verified: false,
+              friendRequests: false,
+              blocked: false,
+              createdAt: false,
+              updatedAt: false,
+              __v: false
+            }
+          }
+        ]).exec();
+        return suggestions;
+      } catch (err) {
+        console.error(err.message);
+      }
+    },
 });
 
 userSchema.statics = {
@@ -131,7 +195,7 @@ userSchema.statics = {
   async get(id) {
     let user;
 
-    if (mongoose.Types.ObjectId.isValid(id)) {
+    if (ObjectId.isValid(id)) {
       user = await this.findById(id).exec();
     }
     if (user) {
@@ -206,6 +270,8 @@ userSchema.statics = {
       .limit(perPage)
       .exec();
   },
+
+  
 };
 
 const User = mongoose.model('User',userSchema);
