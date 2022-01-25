@@ -1,6 +1,7 @@
 // const mongoose = require('mongoose');
 const axios = require("axios");
 const { photos_api_url } = require("../../../config/strings");
+const Like = require("../models/like.model");
 const Post = require("../models/post.model");
 const User = require("../models/user.model");
 
@@ -116,10 +117,88 @@ const getAllPosts = async (req,res,next) => {
     }
 }
 
+const likePost = async (req,res,next) => {
+    try {
+        const postId = req.params.id;
+        const post = await Post.findById(postId).exec();
+        if(!post) return res.status(400).json({
+            success: false,
+            msg: "Invalid Post Id"
+        })
+        const like = await Like.findOneAndUpdate({
+            post: postId,
+            user: req.userId
+        },{
+            post: postId,
+            user: req.userId
+        },{
+            upsert: true,
+            new: true,
+            rawResult: true
+        }).exec();
+        if(!like.lastErrorObject.updatedExisting){
+            post.like_count = post.like_count + 1;
+            await post.save();
+        }
+        return res.status(201).json({
+            success: true,
+            msg: "Post Liked"
+        })
+    } catch (err) {
+        return next(err);
+    }
+}
+
+const unlikePost = async (req,res,next) => {
+    try {
+        const postId = req.params.id;
+        const post = await Post.findById(postId).exec();
+        if(!post) return res.status(400).json({
+            success: false,
+            msg: "Invalid Post Id"
+        })
+        const like = await Like.findOneAndDelete({
+            post: postId,
+            user: req.userId
+        }).exec();
+        post.like_count = post.like_count - 1;
+        await post.save();
+        return res.status(204).json({
+            success: true,
+            msg: "Like Removed from Post"
+        })
+    } catch (err) {
+        return next(err);
+    }
+}
+
+const getAllLikes = async (req,res,next) => {
+    try {
+        const postId = req.params.id;
+        const likes = await Like.find({post: postId})
+            .populate({
+                path: 'user',
+                model: User,
+                select: 'userName'
+            })
+            .exec();
+        return res.status(200).json({
+            success: true,
+            msg: "All users Who liked the Post",
+            likes: likes
+        });
+    } catch (err) {
+        return next(err);
+    }
+}
+
 module.exports = {
     createOrSharePost,
     getPost,
     editPost,
     deletePost,
-    getAllPosts
+    getAllPosts,
+    likePost,
+    unlikePost,
+    getAllLikes
 }
