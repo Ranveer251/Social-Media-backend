@@ -25,6 +25,10 @@ app.use(function(err, req, res, next) {
   } else if(err instanceof APIError){
     return res.status(err.status).json(err)
   }
+  if(err){
+    console.error(err);
+    res.sendStatus(500);
+  }
 })
 
 process.on('uncaughtException', err => {

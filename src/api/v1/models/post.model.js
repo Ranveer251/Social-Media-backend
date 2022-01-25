@@ -19,6 +19,10 @@ const postSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    source: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Post'
+    },
     in_reply_to_userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
@@ -43,5 +47,5 @@ postSchema.statics = {
 
 };
 
-const Post = new mongoose.model('Post',postSchema);
+const Post = mongoose.model('Post',postSchema);
 module.exports = Post;
