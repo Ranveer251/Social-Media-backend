@@ -13,6 +13,7 @@ const authorize = (req,res,next) => {
             error: "Invalid Access token"
         });
         req.userId = payload.id;
+        req.public = payload.public
         next()
     })
 }

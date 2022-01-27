@@ -32,12 +32,14 @@ const userSchema = new mongoose.Schema({
     name: {
         type: String,
         maxlength: 128,
-        trim: true
+        trim: true,
+        default: ""
     },
     bio: {
       type: String,
       maxlength: 512,
-      trim: true
+      trim: true,
+      default: ""
     },
     public: {
       type: Boolean,
@@ -52,16 +54,20 @@ const userSchema = new mongoose.Schema({
       match: /^(\+\d{1,2}\s?)?1?\-?\.?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/
     },
     college: {
-      type: String
+      type: String,
+      default: ""
     },
     city: {
-      type: String
+      type: String,
+      default: ""
     },
     state: {
-      type: String
+      type: String,
+      default: ""
     },
     country: {
-      type: String
+      type: String,
+      default: ""
     },
     profilePic: {
       type: String
@@ -117,6 +123,7 @@ userSchema.method({
         exp: moment().add(jwtExpirationInterval, 'minutes').unix(),
         iat: moment().unix(),
         id: this._id,
+        public: this.public
       };
       return sign(payload, jwtSecret);
     },
