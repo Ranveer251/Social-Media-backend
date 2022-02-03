@@ -37,8 +37,6 @@ const register = async (req,res,next) => {
                 msg: "Username already taken"
             })
         }
-        userData.createdAt = new Date();
-        userData.updatedAt = new Date();
         user = await new User(userData).save();
         // console.log(user);
         verifyTokenObject = await VerifyToken.generate(user);
@@ -97,7 +95,7 @@ const sendVerificationEmail = async (req,res,next) => {
             userId: user._id
         })
         if(verifyTokenObject && !moment(verifyTokenObject.expires).isBefore()){
-            sendEmailVerification(verifyTokenObject);
+            await sendEmailVerification(verifyTokenObject);
         } else {
             if(moment(verifyTokenObject.expires).isBefore()){
                 await VerifyToken.deleteOne({

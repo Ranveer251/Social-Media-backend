@@ -22,14 +22,8 @@ const commentSchema = new mongoose.Schema({
     level: {
         type: Number,
         default: 0
-    },
-    createdAt: {
-        type: Date
-    }, 
-    updatedAt: {
-        type: Date
     }
-})
+},{timestamps: true})
 
 commentSchema.method({
     

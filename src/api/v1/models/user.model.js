@@ -80,14 +80,8 @@ const userSchema = new mongoose.Schema({
     },
     blocked: {
       type: [{type: mongoose.Schema.Types.ObjectId, ref:'User'}]
-    },
-    createdAt: {
-        type: Date
-    }, 
-    updatedAt: {
-        type: Date
     }
-})
+},{timestamps: true})
 
 userSchema.index({name: 'text', userName: 'text', email: 'text'});
 
@@ -134,7 +128,7 @@ userSchema.method({
 
     async suggestFriends () {
       const userId = this._id
-      console.log(userId);
+      // console.log(userId);
       try {
         const suggestions = await User.aggregate([
           {

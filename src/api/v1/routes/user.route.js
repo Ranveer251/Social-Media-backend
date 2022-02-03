@@ -11,25 +11,11 @@ const router = express.Router();
 
 router.route('/').get(authorize,validate(search),controller.getUsers);
 
-router.route('/friends').get(authorize,controller.getAllFriends);
-
-router.route('/friends/request').post(authorize,controller.sendFriendRequest);
-
-router.route('/friends').post(authorize,controller.acceptFriendRequest);
-
-router.route('/friends/reject').delete(authorize,controller.rejectFriendRequest);
-
-router.route('/friends/requests').get(authorize,controller.getAllFriendRequests);
-
-router.route('/friends').delete(authorize,controller.removeFriend);
-
 router.route('/block').post(authorize,controller.blockUser);
 
 router.route('/block').get(authorize,controller.getAllBlockedUsers);
 
 router.route('/block').delete(authorize,controller.unblockUser);
-
-router.route('/friends/suggestions').get(authorize,controller.suggestFriends);
 
 router.route('/:id').get(authorize,controller.getProfile);
 

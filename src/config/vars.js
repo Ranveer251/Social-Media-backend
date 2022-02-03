@@ -13,5 +13,6 @@ module.exports = {
   jwtExpirationInterval: process.env.JWT_EXPIRATION_MINUTES,
   mongo: {
     uri: process.env.MONGO_URI,
-  }
+  },
+  email_service_auth_key: process.env.EMAIL_SERVICE_AUTH_KEY
 };

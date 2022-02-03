@@ -15,6 +15,10 @@ const postSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    hashtags: {
+        type: [{type: mongoose.Schema.Types.ObjectId, ref:'Hashtag'}],
+        default: []
+    },
     shared: {
         type: Boolean,
         default: false
@@ -30,14 +34,8 @@ const postSchema = new mongoose.Schema({
     in_reply_content: {
         type: String,
         default: ""
-    },
-    createdAt: {
-        type: Date
-    },
-    updatedAt: {
-        type: Date
     }
-})
+},{timestamps: true})
 
 postSchema.method({
     

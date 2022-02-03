@@ -13,10 +13,10 @@ app.use(
 );
 
 const apiProxy = createProxyMiddleware({ target: 'http://localhost:8080' ,pathRewrite: {
-  '/api/v1/users/images' : '/images'
+  '/api/v1/images' : '/images'
 },changeOrigin: true});
 
-app.use('/api/v1/users/images',apiProxy);
+app.use('/api/v1/images',apiProxy);
 app.use('/api/v1',routes);
 
 app.use(function(err, req, res, next) {
@@ -27,13 +27,13 @@ app.use(function(err, req, res, next) {
   }
   if(err){
     console.error(err);
-    res.sendStatus(500);
+    res.sendStatus(500).json(err);
   }
 })
 
 process.on('uncaughtException', err => {
   console.error('There was an uncaught error', err)
-  process.exit(1) //mandatory (as per the Node.js docs)
+  process.exit(1) 
 })
 
 app.all('*',(req,res)=> {

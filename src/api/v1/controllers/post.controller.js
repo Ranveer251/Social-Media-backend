@@ -1,18 +1,27 @@
-// const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 const axios = require("axios");
+const _ = require('lodash');
 const { photos_api_url } = require("../../../config/strings");
+const { ObjectId } = mongoose.Types;
 const Like = require("../models/like.model");
 const Post = require("../models/post.model");
 const User = require("../models/user.model");
 const Comment = require("../models/comment.model");
+const Hashtag = require("../models/hashtag.model");
 
 const createOrSharePost = async (req,res,next) => {
     try {
-        const postData = req.body;
+        let postData = req.body;
+        const hashtags = postData.hashtags;
+        delete postData.hashtags;
         postData.author = req.userId;
-        postData.createdAt = new Date();
-        postData.updatedAt = postData.createdAt;
         const post = await new Post(postData).save();
+        for await (let tag of hashtags ){
+            tag = _.lowerCase(tag);
+            const hashtag = await Hashtag.findOneAndUpdate({content: tag, user: req.userId},{$inc: {'count': 1}},{new: true,upsert:true}).exec();
+            post.hashtags.push(hashtag._id);
+        }
+        await post.save();
         return res.status(201).json({
             success: true,
             msg: "Post Created Successfully",
@@ -33,6 +42,11 @@ const getPost = async (req,res,next) => {
                 select: 'userName friends'
             })
             .populate({
+                path: 'hashtags',
+                model: Hashtag,
+                select: 'content'
+            })
+            .populate({
                 path: 'source',
                 model: Post
             })
@@ -42,8 +56,7 @@ const getPost = async (req,res,next) => {
             msg: "Invalid Post Id"
         })
         const friends = post.author.friends;
-        friends = friends.map((el)=> el.toString());
-        if(!req.public && post.author._id.toString()!==req.userId.toString() && !friends.includes(req.userId.toString())){
+        if(!req.public && post.author._id.toString()!==req.userId.toString() && !friends.includes(ObjectId(req.userId))){
             return res.status(403).json({
                 success:false,
                 msg: "Not Permitted to see the post"
@@ -59,16 +72,39 @@ const getPost = async (req,res,next) => {
     }
 }
 
+
 const editPost = async (req,res,next) => {
     try {
         const postId = req.params.id;
         let postData = req.body;
-        const post = await Post.findOneAndUpdate({_id: postId,author: req.userId},postData,{new:true}).exec();
-        if(!post) return res.status(400).json({
+        const hashtags = postData.hashtags;
+        delete postData.hashtags;
+        postData.author = req.userId
+        const oldPost = await Post.findById(postId).populate({path:'hashtags',model:Hashtag,select:'content'}).exec();
+        if(!oldPost) return res.status(400).json({
             success: false,
-            msg: "Invalid Post Id OR Trying to Edit Other's Post"
+            msg: "Invalid Post Id"
         })
-        post.updatedAt = new Date();
+        if(req.userId.toString()!==oldPost.author.toString()) return res.status(400).json({
+            success: false,
+            msg: "Trying to Edit Other's Post"
+        })
+        const oldTags = oldPost.hashtags.map((el) => el.content);
+        const post = await Post.findOneAndUpdate({_id: postId,author: req.userId},postData,{new:true}).exec();
+        for await (let tag of oldTags){
+            tag = _.lowerCase(tag);
+            if(!hashtags.includes(tag)){
+                await Hashtag.findOneAndUpdate({content: tag,user: req.userId,count: {$gt: 0}},{$inc: {'count': -1}}).exec();
+            }
+        }
+        // console.log(hashtags);
+        for await (let tag of hashtags){
+            tag = _.lowerCase(tag);
+            if(!oldTags.includes(tag)){
+                const doc = await Hashtag.findOneAndUpdate({content: tag,user: req.userId},{$inc: {'count': 1}},{upsert:true,new:true}).exec();
+                post.hashtags.push(doc._id);
+            }
+        }
         await post.save();
         return res.status(200).json({
             success: true,
@@ -83,11 +119,19 @@ const editPost = async (req,res,next) => {
 const deletePost = async (req,res,next) => {
     try {
         const postId = req.params.id;
-        const post = await Post.findOneAndDelete({post:postId, author: req.userId}).select('photos').exec();
+        const post = await Post.findOneAndDelete({post:postId, author: req.userId})
+            .select('photos hashtags')
+            .populate({path:'hashtags',model:Hashtag,select:'content'})
+            .exec();
         if(!post) return res.status(400).json({
             success: false,
             msg: "Invalid Post Id"
         })
+        const hashtags = post.hashtags.map((el) => el.content);
+        for await (let tag of hashtags){
+            tag = _.lowerCase(tag);
+            await Hashtag.findOneAndUpdate({content: tag,user: req.userId,count: {$gt: 0}},{count: {$inc: -1}}).exec();
+        }
         post.photos.map(async (url) => {
             const del = await axios.delete(`${photos_api_url}${url}`)
             console.log(del);
@@ -115,6 +159,11 @@ const getAllPosts = async (req,res,next) => {
                 select: 'friends'
             })
             .populate({
+                path: 'hashtags',
+                model: Hashtag,
+                select: 'content'
+            })
+            .populate({
                 path: 'source',
                 model: Post
             })
@@ -134,7 +183,11 @@ const getAllPosts = async (req,res,next) => {
 const likePost = async (req,res,next) => {
     try {
         const postId = req.params.id;
-        const post = await Post.findById(postId).exec();
+        const post = await Post.findById(postId).select('like_count hashtags').populate({
+            path: 'hashtags',
+            model: Hashtag,
+            select: 'content'
+        }).exec();
         if(!post) return res.status(400).json({
             success: false,
             msg: "Invalid Post Id"
@@ -150,6 +203,11 @@ const likePost = async (req,res,next) => {
             new: true,
             rawResult: true
         }).exec();
+        const hashtags = post.hashtags.map((el) => el.content);
+        for await (let tag of hashtags){
+            tag = _.lowerCase(tag);
+            await Hashtag.findOneAndUpdate({content: tag,user: req.userId},{count: {$inc: 1}}).exec();
+        }
         if(!like.lastErrorObject.updatedExisting){
             post.like_count = post.like_count + 1;
             await post.save();
@@ -166,7 +224,11 @@ const likePost = async (req,res,next) => {
 const unlikePost = async (req,res,next) => {
     try {
         const postId = req.params.id;
-        const post = await Post.findById(postId).exec();
+        const post = await Post.findById(postId).select('like_count hashtags').populate({
+            path: 'hashtags',
+            model: Hashtag,
+            select: '-user'
+        }).exec();
         if(!post) return res.status(400).json({
             success: false,
             msg: "Invalid Post Id"
@@ -175,6 +237,11 @@ const unlikePost = async (req,res,next) => {
             post: postId,
             user: req.userId
         }).exec();
+        const hashtags = post.hashtags.map((el) => el.content);
+        for await (const tag of hashtags){
+            tag = _.lowerCase(tag);
+            await Hashtag.findOneAndUpdate({content: tag,user: req.userId,count: {$gt: 0}},{count: {$inc: -1}}).exec();
+        }
         if(like){
             post.like_count = post.like_count - 1;
             await post.save();
@@ -306,6 +373,17 @@ const deleteComment = async (req,res,next) => {
             success: true,
             msg: "Comment deleted Successfully"
         })
+    } catch (err) {
+        return next(err);
+    }
+}
+
+const getComment = async (req,res,next) => {
+    try {
+        const postId = req.params.id;
+        const commentId = req.params.cid;
+        const comment = await Comment.findById(commentId).exec();
+
     } catch (err) {
         return next(err);
     }
