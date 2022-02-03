@@ -80,6 +80,10 @@ const userSchema = new mongoose.Schema({
     },
     blocked: {
       type: [{type: mongoose.Schema.Types.ObjectId, ref:'User'}]
+    },
+    show_notifications: {
+      type: Boolean,
+      default: true
     }
 },{timestamps: true})
 
@@ -117,7 +121,8 @@ userSchema.method({
         exp: moment().add(jwtExpirationInterval, 'minutes').unix(),
         iat: moment().unix(),
         id: this._id,
-        public: this.public
+        public: this.public,
+        username: this.userName
       };
       return sign(payload, jwtSecret);
     },

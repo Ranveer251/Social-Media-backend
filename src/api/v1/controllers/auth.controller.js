@@ -38,7 +38,8 @@ const register = async (req,res,next) => {
             })
         }
         user = await new User(userData).save();
-        // console.log(user);
+        user.passwordHash = undefined;
+        
         verifyTokenObject = await VerifyToken.generate(user);
         sendEmailVerification(verifyTokenObject);
         const token = generateTokenResponse(user, user.token());
@@ -55,8 +56,9 @@ const register = async (req,res,next) => {
 
 const login = async (req,res,next) => {
     try{
-        const {user, accessToken} = await User.findAndGenerateToken(req.body);
+        let {user, accessToken} = await User.findAndGenerateToken(req.body);
         const token = generateTokenResponse(user, accessToken);
+        user.passwordHash = undefined;
         return res.status(200).json({ 
             success:true,
             msg: "Login Successfull",
