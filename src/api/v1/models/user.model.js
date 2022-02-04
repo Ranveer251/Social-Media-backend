@@ -84,7 +84,11 @@ const userSchema = new mongoose.Schema({
     show_notifications: {
       type: Boolean,
       default: true
-    }
+    },
+    email_notifications: {
+      type: Boolean,
+      default: true
+    },
 },{timestamps: true})
 
 userSchema.index({name: 'text', userName: 'text', email: 'text'});

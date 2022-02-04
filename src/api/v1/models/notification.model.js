@@ -32,7 +32,7 @@ const notificationSchema = new mongoose.Schema({
     type: {
         type: String,
         required: true,
-        enum: ['like', 'comment', 'mention', 'request', 'accept', 'reject', 'share','post']
+        enum: ['like', 'comment', 'mention', 'Friend Request', 'Accept Request', 'reject', 'share','post']
     },
 },{timestamps: true});
 

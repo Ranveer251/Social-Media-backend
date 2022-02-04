@@ -1,5 +1,7 @@
 const FriendRequest = require("../models/friendRequest.model");
+const Notification = require("../models/notification.model");
 const User = require("../models/user.model");
+const { sendFriendRequestEmail, sendAcceptFriendEmail } = require("../services/emailProvider");
 
 const sendFriendRequest = async (req,res,next) => {
     try {
@@ -48,6 +50,23 @@ const sendFriendRequest = async (req,res,next) => {
             reqId,
             {$push: {friendRequests: docB._id}}
         );
+        if(updatedUserB.show_notification){
+            await new Notification({
+                sender: updateUserA.userName,
+                receiver: updatedUserB.email,
+                type: "Friend Request",
+                message: "You have a new friend request from " + updateUserA.userName,
+            }).save();
+        }
+        if(updatedUserB.email_notification){
+            const emailData = {
+                sender: updateUserA.userName,
+                receiver: updatedUserB.email,
+                type: "Friend Request",
+                message: "You have a new friend request from " + updateUserA.userName
+            }
+            await sendFriendRequestEmail(emailData);
+        }
         return res.status(200).json({
             success: true,
             msg: "Friend Request sent"
@@ -82,6 +101,23 @@ const acceptFriendRequest = async (req,res,next) => {
             { _id: reqId },
             { $pull: { friendRequests: docA._id },$push: { friends: id}}
         )
+        if(updatedUserA.show_notification){
+            await new Notification({
+                sender: updateUserB.userName,
+                receiver: updatedUserA.email,
+                type: "Accept Request",
+                message: updateUserB.userName + " has accepted your friend request",
+            }).save();
+        }
+        if(updatedUserA.email_notification){
+            const emailData = {
+                sender: updateUserB.userName,
+                receiver: updatedUserA.email,
+                type: "Accept Request",
+                message: updateUserB.userName + " has accepted your friend request",
+            }
+            await sendAcceptFriendEmail(emailData);
+        }
         return res.status(200).json({
             success:true,
             msg: "Friend Request Accepted"

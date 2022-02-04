@@ -9,6 +9,7 @@ const User = require("../models/user.model");
 const Comment = require("../models/comment.model");
 const Hashtag = require("../models/hashtag.model");
 const Notification = require('../models/notification.model');
+const { sendNotificationEmail } = require('../services/emailProvider');
 
 const createOrSharePost = async (req,res,next) => {
     try {
@@ -26,7 +27,7 @@ const createOrSharePost = async (req,res,next) => {
         const user = await User.findById(req.userId).populate({
             path: 'friends',
             model: User,
-            select: '_id show_notifications'
+            select: '_id email show_notifications email_notifications'
         })
         .select('friends userName')
         .exec();
@@ -38,14 +39,23 @@ const createOrSharePost = async (req,res,next) => {
             type = 'shared';
         }
         for await (let friend of friends){
-            if(friend.show_notifications){
+            if(friend.show_notifications ){
                 await new Notification({
                     sender: req.userId,
                     reciever: friend._id,
                     post: post._id,
-                    content: message,
+                    message: message,
                     type: type
                 }).save();
+            }
+            if(friend.email_notifications){
+                const emailData = {
+                    message: message,
+                    type: type,
+                    email: friend.email,
+                    post: post._id
+                }
+                await sendNotificationEmail(emailData);
             }
         }
         return res.status(201).json({
@@ -240,7 +250,7 @@ const likePost = async (req,res,next) => {
 
             post.like_count = post.like_count + 1;
             await post.save();
-            const friend = await User.findById(post.author).select('show_notifications').exec();
+            const friend = await User.findById(post.author).select('email show_notifications email_notifications').exec();
             if(friend.show_notifications){
                 await new Notification({
                     sender: req.userId,
@@ -249,6 +259,15 @@ const likePost = async (req,res,next) => {
                     type: 'like',
                     message: `${req.username} liked your post`
                 }); 
+            }
+            if(friend.email_notifications){
+                const emailData = {
+                    message: message,
+                    type: type,
+                    email: friend.email,
+                    post: post._id
+                }
+                await sendNotificationEmail(emailData);
             }
         }
 
@@ -344,7 +363,7 @@ const postComment = async (req,res,next) => {
         }).save();
         comment.parents.push(comment._id);
         comment.save();
-        const friend = await User.findById(post.author).select('show_notifications').exec();
+        const friend = await User.findById(post.author).select('email show_notifications email_notifications').exec();
         if(friend.show_notifications){
             await new Notification({
                 sender: req.userId,
@@ -354,6 +373,15 @@ const postComment = async (req,res,next) => {
                 message: `${req.username} commented on your post`,
                 content: content
             });
+        }
+        if(friend.email_notifications){
+            const emailData = {
+                message: message,
+                type: type,
+                email: friend.email,
+                post: post._id
+            }
+            await sendNotificationEmail(emailData);
         }
         return res.status(201).json({
             success: true,
@@ -392,8 +420,8 @@ const replyComment = async (req,res,next) => {
         }).save();
         comment.parents = [...parent.parents,comment._id];
         comment.save();
-        const friend = await User.findById(post.author).select('show_notifications').exec();
-        if(friend.show_notifications){
+        const friend = await User.findById(post.author).select('email show_notifications email_notifications').exec();
+        if(friend.show_notifications ){
             await new Notification({
                 sender: req.userId,
                 receiver: parent.author,
@@ -402,6 +430,15 @@ const replyComment = async (req,res,next) => {
                 message: `${req.username} replied on your comment`,
                 content: content
             });
+        }
+        if(friend.email_notifications){
+            const emailData = {
+                message: message,
+                type: type,
+                email: friend.email,
+                post: post._id
+            }
+            await sendNotificationEmail(emailData);
         }
 
         return res.status(201).json({
