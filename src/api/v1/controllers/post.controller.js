@@ -17,6 +17,13 @@ const createOrSharePost = async (req,res,next) => {
         const hashtags = postData.hashtags;
         delete postData.hashtags;
         postData.author = req.userId;
+        if(postData.shared === true){
+            const post = await Post.findById(postData.source).exec();
+            if(!post) return res.status(400).json({
+                success: false,
+                msg: "Invalid Post Id"
+            })
+        }
         const post = await new Post(postData).save();
         for await (let tag of hashtags ){
             tag = _.lowerCase(tag);
