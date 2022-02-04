@@ -8,7 +8,8 @@ const postBody = {
         shared: Joi.boolean(),
         source: Joi.string(),
         in_reply_to_userId: Joi.string(),
-        in_reply_content: Joi.string()
+        in_reply_content: Joi.string(),
+        mentions: Joi.array().items(Joi.string())
     })
 }
 

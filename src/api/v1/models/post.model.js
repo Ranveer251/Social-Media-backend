@@ -34,6 +34,9 @@ const postSchema = new mongoose.Schema({
     in_reply_content: {
         type: String,
         default: ""
+    },
+    mentions: {
+        type: [{type: mongoose.Schema.Types.ObjectId, ref:'User'}],
     }
 },{timestamps: true})
 

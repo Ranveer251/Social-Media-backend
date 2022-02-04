@@ -6,7 +6,6 @@ const { ObjectId } = mongoose.Types;
 const Like = require("../models/like.model");
 const Post = require("../models/post.model");
 const User = require("../models/user.model");
-const Comment = require("../models/comment.model");
 const Hashtag = require("../models/hashtag.model");
 const Notification = require('../models/notification.model');
 const { sendNotificationEmail } = require('../services/emailProvider');
@@ -31,10 +30,15 @@ const createOrSharePost = async (req,res,next) => {
             post.hashtags.push(hashtag._id);
         }
         await post.save();
+        post = await post.populate({
+            path: 'mentions',
+            model: User,
+            select: 'email show_notifications email_notifications'
+        }).execPopulate();
         const user = await User.findById(req.userId).populate({
             path: 'friends',
             model: User,
-            select: '_id email show_notifications email_notifications'
+            select: 'email show_notifications email_notifications'
         })
         .select('friends userName')
         .exec();
@@ -60,6 +64,26 @@ const createOrSharePost = async (req,res,next) => {
                     message: message,
                     type: type,
                     email: friend.email,
+                    post: post._id
+                }
+                await sendNotificationEmail(emailData);
+            }
+        }
+        for await (let mention of post.mentions) {
+            if(mention.show_notifications){
+                await new Notification({
+                    sender: req.userId,
+                    reciever: mention._id,
+                    post: post._id,
+                    message: `${user.userName} mentioned you in a post`,
+                    type: 'mention'
+                }).save();
+            }
+            if(mention.email_notifications){
+                const emailData = {
+                    message: `${user.userName} mentioned you in a post`,
+                    type: 'mention',
+                    email: mention.email,
                     post: post._id
                 }
                 await sendNotificationEmail(emailData);
@@ -93,6 +117,11 @@ const getPost = async (req,res,next) => {
                 path: 'source',
                 model: Post
             })
+            .populate({
+                path: 'mentions',
+                model: User,
+                select: 'userName'
+            })
             .exec();
         if(!post) return res.status(400).json({
             success: false,
@@ -114,7 +143,6 @@ const getPost = async (req,res,next) => {
         return next(err);
     }
 }
-
 
 const editPost = async (req,res,next) => {
     try {
@@ -200,7 +228,7 @@ const getAllPosts = async (req,res,next) => {
             .populate({
                 path: 'author',
                 model: User,
-                select: 'friends'
+                select: 'userName'
             })
             .populate({
                 path: 'hashtags',
@@ -210,6 +238,11 @@ const getAllPosts = async (req,res,next) => {
             .populate({
                 path: 'source',
                 model: Post
+            })
+            .populate({
+                path: 'mentions',
+                model: User,
+                select: 'userName'
             })
             .skip(skip)
             .limit(limit)
@@ -223,6 +256,47 @@ const getAllPosts = async (req,res,next) => {
         return next(err);
     }
 }
+
+const getAllMentions = async (req,res,next) => {
+    try {
+        const page  = req.params.page ? req.params.page: 1;
+        const limit = req.params.perPage ? req.params.perPage : 20;
+        const skip = limit*(page-1);
+        const posts = await Post.find({
+                mentions: req.userId,
+            })
+            .populate({
+                path: 'author',
+                model: User,
+                select: 'userName'
+            })
+            .populate({
+                path: 'hashtags',
+                model: Hashtag,
+                select: 'content'
+            })
+            .populate({
+                path: 'source',
+                model: Post
+            })
+            .populate({
+                path: 'mentions',
+                model: User,
+                select: 'userName'
+            })
+            .skip(skip)
+            .limit(limit)
+            .exec();
+        return res.status(200).json({
+            success: true,
+            msg: "All Tagged Posts of the user",
+            posts: posts
+        });
+    } catch (err) {
+        return next(err);
+    }
+}
+
 
 const likePost = async (req,res,next) => {
     try {
@@ -351,305 +425,14 @@ const getAllLikes = async (req,res,next) => {
     }
 }
 
-const postComment = async (req,res,next) => {
-    try {
-        const postId = req.params.id;
-        const {content} = req.body;
-        const post = await Post.findById(postId).select('_id').exec();
-        if(!post) return res.status(400).json({
-            success: false,
-            msg: "Invalid Post Id"
-        })
-        const comment = await new Comment({
-            author: req.userId,
-            post: postId,
-            content: content,
-            level: 1,
-            createdAt: new Date(),
-            updatedAt: new Date()
-        }).save();
-        comment.parents.push(comment._id);
-        comment.save();
-        const friend = await User.findById(post.author).select('email show_notifications email_notifications').exec();
-        if(friend.show_notifications){
-            await new Notification({
-                sender: req.userId,
-                receiver: post.author,
-                post: postId,
-                type: 'comment',
-                message: `${req.username} commented on your post`,
-                content: content
-            });
-        }
-        if(friend.email_notifications){
-            const emailData = {
-                message: message,
-                type: type,
-                email: friend.email,
-                post: post._id
-            }
-            await sendNotificationEmail(emailData);
-        }
-        return res.status(201).json({
-            success: true,
-            msg: "Comment Posted",
-            comment: comment
-        })
-    } catch (err) {
-        return next(err);
-    }
-}
-
-const replyComment = async (req,res,next) => {
-    try {
-        const postId = req.params.id;
-        const commentId = req.params.cid;
-        const {content} = req.body;
-        const post = await Post.findById(postId).select('_id').exec();
-        if(!post) return res.status(400).json({
-            success: false,
-            msg: "Invalid Post Id"
-        })
-        const parent = await Comment.findById(commentId).select('author parents post level').exec();
-        if(!parent) return res.status(400).json({
-            success: false,
-            msg: "Invalid Comment Id, Parent comment not found"
-        })
-        console.log(parent);
-        
-        const comment = await new Comment({
-            author: req.userId,
-            post: postId,
-            content: content,
-            level: parent.level+1,
-            createdAt: new Date(),
-            updatedAt: new Date()
-        }).save();
-        comment.parents = [...parent.parents,comment._id];
-        comment.save();
-        const friend = await User.findById(post.author).select('email show_notifications email_notifications').exec();
-        if(friend.show_notifications ){
-            await new Notification({
-                sender: req.userId,
-                receiver: parent.author,
-                post: postId,
-                type: 'reply',
-                message: `${req.username} replied on your comment`,
-                content: content
-            });
-        }
-        if(friend.email_notifications){
-            const emailData = {
-                message: message,
-                type: type,
-                email: friend.email,
-                post: post._id
-            }
-            await sendNotificationEmail(emailData);
-        }
-
-        return res.status(201).json({
-            success: true,
-            msg: "Comment Reply Posted",
-            comment: comment
-        })
-    } catch (err) {
-        return next(err);
-    }
-}
-
-const editComment = async (req,res,next) => {
-    try {
-        const commentId = req.params.cid;
-        const {content} = req.body;
-        const comment = await Comment.findByIdAndUpdate(commentId,{content:content},{new:true}).exec();
-        if(!comment) return res.status(400).json({
-            success: false,
-            msg: "Invalid Comment Id"
-        })
-        return res.status(200).json({
-            success: true,
-            msg: "Comment edited Successfully",
-            comment: comment
-        })
-    } catch (err) {
-        return next(err);
-    }
-}
-
-const deleteComment = async (req,res,next) => {
-    try {
-        const commentId = req.params.cid;
-        const count = await Comment.deleteMany({parents: commentId}).exec();
-        if(count==0) return res.status(400).json({
-            success: false,
-            msg: "Invalid Comment Id"
-        })
-        return res.status(204).json({
-            success: true,
-            msg: "Comment deleted Successfully"
-        })
-    } catch (err) {
-        return next(err);
-    }
-}
-
-const getComment = async (req,res,next) => {
-    try {
-        const postId = req.params.id;
-        const commentId = req.params.cid;
-        const comment = await Comment.findById(commentId).exec();
-        if(!comment) return res.status(400).json({
-            success: false,
-            msg: "Invalid Comment Id"
-        })
-        return res.status(200).json({
-            success: true,
-            msg: "Comment fetched Successfully",
-            comment: comment
-        })
-    } catch (err) {
-        return next(err);
-    }
-}
-
-const getComments = async (req,res,next) => {
-    try {
-        const page  = req.params.page ? req.params.page: 1;
-        const limit = req.params.perPage ? req.params.perPage : 20;
-        const skip = limit*(page-1);
-        const postId = req.params.id;
-        const post  = await Post.findById(postId).select('_id').exec();
-
-        if(!post) return res.status(400).json({
-            success: false,
-            msg: "Invalid Post Id"
-        })
-        const comments = await Comment.find({post: postId,level:1}).sort({createdAt: 1}).select('author content')
-        .populate({
-            path: 'author',
-            model: User,
-            select: 'userName'
-        })
-        .skip(skip)
-        .limit(limit)
-        .exec();
-        if(!comments) return res.status(400).json({
-            success: false,
-            msg: "No comments found"
-        })
-        return res.status(200).json({
-            success: true,
-            msg: "Comments fetched Successfully",
-            comments: comments
-        })
-    } catch (err) {
-        return next(err);
-    }
-}
-
-const getReplies = async (req,res,next) => {
-    try {
-        const page  = req.params.page ? req.params.page: 1;
-        const limit = req.params.perPage ? req.params.perPage : 20;
-        const skip = limit*(page-1);
-        const postId = req.params.id;
-        const commentId = req.params.cid;
-        const comment = await Comment.findById(commentId).exec();
-        if(!comment) return res.status(400).json({
-            success: false,
-            msg: "Invalid Comment Id"
-        })
-        const replies = await Comment.find({parents: commentId,level: comment.level+1}).sort({createdAt: 1})
-        .select('author content')
-        .populate({
-            path: 'author',
-            model: User,
-            select: 'userName'
-        })
-        .skip(skip)
-        .limit(limit)
-        .exec();
-        return res.status(200).json({
-            success: true,
-            msg: "Replies fetched Successfully",
-            replies: replies
-        })
-    } catch (err) {
-        return next(err);
-    }
-}
-
-// const getAllComments = async (req,res,next) => {
-//     try {
-//         const postId = req.params.id;
-//         const post  = await Post.findById(postId).select('_id').exec();
-
-//         if(!post) return res.status(400).json({
-//             success: false,
-//             msg: "Invalid Post Id"
-//         })
-
-//         const comments = await Comment.find({post:postId, level: 1 }).sort({createdAt: 1}).select('content parents').lean().exec();
-//         const sort = function (a, b) {
-//             if (a.parents.length < b.parents.length) {
-//               return -1;
-//             }
-//             if (a.parents.length > b.parents.length) {
-//               return 1;
-//             }
-//             return 0;
-//         };
-//         let rec = (comment, index, threads) => {
-//             for (var thread of threads) {
-//                 if(index===comment.parents.length-2 && thread._id.toString()==comment.parents[index].toString()) {
-//                     if(!thread.replies) thread.replies = [];
-//                     thread.replies.push(comment);
-//                     return;
-//                 }
-//                 if(thread._id.toString()==comment.parents[index].toString()) {
-//                     var replies = thread.replies;
-//                     console.log(replies);
-//                     rec(comment, index+1, replies);
-//                     console.log(replies);
-//                 }
-//             }
-//         }
-//         let threads = [];
-//         for await (const comment of comments ) {
-//             threads.push(comment);
-//             const replies = await Comment.find({post:postId, parents: comment._id, level: {$gt: 1}}).select('content parents').exec();
-//             if(replies.length>0){
-//                 replies.sort(sort);
-//                 replies.forEach(reply => {
-//                     rec(reply,0,threads);
-//                 });
-//             }
-//         };
-//         return res.status(200).json({
-//             success: true,
-//             msg: "Got comment thread",
-//             comments: threads
-//         })
-//     } catch (err) {
-//         return next(err);
-//     }
-// }
-
 module.exports = {
     createOrSharePost,
     getPost,
     editPost,
     deletePost,
     getAllPosts,
+    getAllMentions,
     likePost,
     unlikePost,
     getAllLikes,
-    postComment,
-    replyComment,
-    editComment,
-    deleteComment,
-    getComments,
-    getComment,
-    getReplies
 }
