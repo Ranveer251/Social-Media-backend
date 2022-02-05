@@ -1,3 +1,4 @@
+const _ = require('lodash');
 const Post = require("../models/post.model");
 const User = require("../models/user.model");
 
@@ -25,6 +26,63 @@ const getFeed = async (req,res,next) => {
     }
 }
 
+const getSuggestedFeed = async (req,res,next) => {
+    try {
+        const page  = req.params.page ? req.params.page: 1;
+        const limit = req.params.limit ? req.params.limit : 1;
+        const skip = limit * (page-1);
+        const user = await User.findById(req.userId).exec();
+        const suggestions = await user.suggestFriends();
+        let suggestedFeed = [];
+        suggestions.map(async (suggestion) => {
+            const posts = await Post.find({author: suggestion._id})
+            .sort({ "timestamps.updatedAt": "desc" })
+            .populate({
+                path: 'source',
+                model: Post
+            })
+            .skip(skip)
+            .limit(limit)
+            .exec();
+            suggestedFeed = _.union(suggestedFeed, posts);
+        }); 
+        const likedHashtags = await user.getLikedHashtags();
+        likedHashtags.map(async (hashtag) => {
+            const posts = await Post.find({hashtags: hashtag})
+            .sort({ "timestamps.updatedAt": "desc" })
+            .populate({
+                path: 'source',
+                model: Post
+            })
+            .skip(skip)
+            .limit(limit)
+            .exec();
+            suggestedFeed = _.union(suggestedFeed, posts);
+        });
+
+        suggestedFeed.filter((post) => {
+            const isBlocked = user.isBlocked(post.author);
+            const isFriend = user.isFriend(post.author);
+            if (isBlocked || (!post.public && isFriend)) return false;
+            return true;
+        });
+
+        for (let i = suggestedFeed.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [suggestedFeed[i], suggestedFeed[j]] = [suggestedFeed[j], suggestedFeed[i]];
+        }
+        suggestedFeed.slice(0, limit);
+        return res.status(200).json({
+            success: true,
+            msg: "User Suggested Feed",
+            feed: suggestedFeed
+        });
+    } catch(err) {
+        return next(err);
+    }
+}
+
 module.exports = {
-    getFeed
+    getFeed,
+    getSuggestedFeed
 }

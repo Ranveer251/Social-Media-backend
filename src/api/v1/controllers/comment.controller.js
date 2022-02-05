@@ -19,6 +19,8 @@ const postComment = async (req,res,next) => {
             success: false,
             msg: "Invalid Post Id"
         })
+        post.comment_count = post.comment_count+1;
+        await post.save();
         const comment = await new Comment({
             author: req.userId,
             post: postId,
@@ -83,8 +85,8 @@ const replyComment = async (req,res,next) => {
             success: false,
             msg: "Invalid Comment Id, Parent comment not found"
         })
-        console.log(parent);
-        
+        post.comment_count = post.comment_count+1;
+        await post.save();
         const comment = await new Comment({
             author: req.userId,
             post: postId,
@@ -152,11 +154,19 @@ const editComment = async (req,res,next) => {
 const deleteComment = async (req,res,next) => {
     try {
         const commentId = req.params.cid;
+        const postId = req.params.id;
+        const post = await Post.findById(postId).select('comment_count').exec();
+        if(!post) return res.status(400).json({
+            success: false,
+            msg: "Invalid Post Id"
+        })
         const count = await Comment.deleteMany({parents: commentId}).exec();
         if(count==0) return res.status(400).json({
             success: false,
             msg: "Invalid Comment Id"
         })
+        post.comment_count = post.comment_count-count;
+        await post.save();
         return res.status(204).json({
             success: true,
             msg: "Comment deleted Successfully"
@@ -259,5 +269,5 @@ module.exports = {
     deleteComment,
     getComment,
     getComments,
-    getReplies
+    getReplies,
 }

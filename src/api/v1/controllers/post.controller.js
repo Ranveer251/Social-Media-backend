@@ -22,6 +22,8 @@ const createOrSharePost = async (req,res,next) => {
                 success: false,
                 msg: "Invalid Post Id"
             })
+            post.shared_count = post.shared_count + 1;
+            await post.save();
         }
         const post = await new Post(postData).save();
         for await (let tag of hashtags ){

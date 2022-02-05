@@ -7,6 +7,7 @@ const {jwtSecret} = require('../utils/jwt');
 const {sign} = require("../utils/jwt")
 const {env, jwtExpirationInterval} = require('../../../config/vars');
 const RefreshToken = require('./refreshToken.model');
+const Hashtag = require('./hashtag.model');
 
 const userSchema = new mongoose.Schema({
     email: {
@@ -137,7 +138,6 @@ userSchema.method({
 
     async suggestFriends () {
       const userId = this._id
-      // console.log(userId);
       try {
         const suggestions = await User.aggregate([
           {
@@ -198,6 +198,43 @@ userSchema.method({
         console.error(err.message);
       }
     },
+
+    async getLikedHashtags () {
+      const userId = this._id;
+      try {
+        const likedHashtags = await Hashtag.find({user: userId})
+          .sort({count: -1})
+          .exec();
+        likedHashtags = likedHashtags.map(hashtag => {
+          return hashtag._id;
+        });
+        return likedHashtags;
+      } catch (err) {
+        console.error(err.message);
+      }
+    },
+
+    async isBlocked(fid) {
+      const userId = this._id;
+      try {
+        const blocked = await User.findOne({_id: userId, blocked: fid})
+          .exec();
+        return !!blocked;
+      } catch (err) {
+        console.error(err.message);
+      }
+    },
+    
+    async isFriend(fid) {
+      const userId = this._id;
+      try {
+        const friend = await User.findOne({_id: userId, friends: fid})
+          .exec();
+        return !!friend;
+      } catch (err) {
+        console.error(err.message);
+      }
+    }
 });
 
 userSchema.statics = {

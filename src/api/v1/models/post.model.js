@@ -15,6 +15,14 @@ const postSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    comment_count: {
+        type: Number,
+        default: 0
+    },
+    share_count: {
+        type: Number,
+        default: 0
+    },
     hashtags: {
         type: [{type: mongoose.Schema.Types.ObjectId, ref:'Hashtag'}],
         default: []
