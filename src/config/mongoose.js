@@ -6,8 +6,6 @@ if (env === 'development') {
   mongoose.set('debug', true);
 }
 
-console.log(mongo.uri);
-
 exports.connect = () => {
   mongoose
     .connect(mongo.uri, {
@@ -18,7 +16,7 @@ exports.connect = () => {
     .then(() => console.log('mongoDB connected...'))
     .catch((err) => {
       console.log(err);
-      // process.exit();
+      process.exit();
     });
   return mongoose.connection;
 };
