@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
-const APIError = require('../api/v1/errors/api-error');
 const { mongo, env } = require('./vars');
 
 // print mongoose logs in dev env
 if (env === 'development') {
   mongoose.set('debug', true);
 }
+
+console.log(mongo.uri);
 
 exports.connect = () => {
   mongoose
