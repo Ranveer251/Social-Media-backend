@@ -18,7 +18,7 @@ exports.connect = () => {
     .then(() => console.log('mongoDB connected...'))
     .catch((err) => {
       console.log(err);
-      process.exit();
+      // process.exit();
     });
   return mongoose.connection;
 };
