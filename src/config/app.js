@@ -25,9 +25,9 @@ app.use(function(err, req, res, next) {
   } else if(err instanceof APIError){
     return res.status(err.status).json(err)
   }
-  if(err){
+  else if(err){
     console.error(err);
-    res.sendStatus(500).json(err);
+    res.status(500).json(err);
   }
 })
 

@@ -8,6 +8,10 @@ const {sign} = require("../utils/jwt")
 const {env, jwtExpirationInterval} = require('../../../config/vars');
 const RefreshToken = require('./refreshToken.model');
 const Hashtag = require('./hashtag.model');
+const cron = require('node-cron');
+const Post = require('./post.model');
+const Like = require('./like.model');
+const Comment = require('./comment.model');
 
 const userSchema = new mongoose.Schema({
     email: {
@@ -89,6 +93,10 @@ const userSchema = new mongoose.Schema({
     email_notifications: {
       type: Boolean,
       default: true
+    },
+    profile_views_this_month: {
+      type: Number,
+      default: 0
     },
 },{timestamps: true})
 
@@ -196,6 +204,10 @@ userSchema.method({
         return suggestions;
       } catch (err) {
         console.error(err.message);
+        throw new APIError({
+          message: 'Internal Server Error',
+          status: 500
+        });
       }
     },
 
@@ -211,6 +223,10 @@ userSchema.method({
         return likedHashtags;
       } catch (err) {
         console.error(err.message);
+        throw new APIError({
+          message: 'Internal Server Error ',
+          status: 500
+        })
       }
     },
 
@@ -222,6 +238,10 @@ userSchema.method({
         return !!blocked;
       } catch (err) {
         console.error(err.message);
+        throw new APIError({
+          message: 'Something went wrong while checking if user is blocked',
+          status: 500
+        })
       }
     },
     
@@ -233,6 +253,59 @@ userSchema.method({
         return !!friend;
       } catch (err) {
         console.error(err.message);
+        throw new APIError({
+          message: 'Something went wrong checking if user is friend',
+          status: 500,
+        })
+      }
+    },
+
+    async getInsights() {
+      const userId = this._id;
+      try {
+        const posts = await Post.find({author: userId}).exec();
+        const insights = {
+          reach_this_week: {
+            friends: 0,
+            non_friends: 0,
+          },
+          reach_this_month: {
+            friends: 0,
+            non_friends: 0,
+          },
+          engagement_this_week: {
+            friends: 0,
+            non_friends: 0,
+          },
+          engagement_this_month: {
+            friends: 0,
+            non_friends: 0,
+          },
+        };
+        for await (const post of posts) {
+          insights.reach_this_week.friends += post.reach_this_week.friends;
+          insights.reach_this_week.non_friends += post.reach_this_week.non_friends;
+          insights.reach_this_month.friends += post.reach_this_month.friends;
+          insights.reach_this_month.non_friends += post.reach_this_month.non_friends;
+          insights.engagement_this_month.friends = post.engagement_this_month.friends;
+          insights.engagement_this_month.non_friends = post.engagement_this_month.non_friends;
+          insights.engagement_this_week.friends = post.engagement_this_week.friends;
+          insights.engagement_this_week.non_friends = post.engagement_this_week.non_friends;
+        }
+        insights["posts_this_week"] = await Post.countDocuments({author: userId, createdAt: {$gte: moment().startOf('week').toDate(), $lte: moment().endOf('week').toDate()}});
+        insights["posts_this_month"] = await Post.countDocuments({author: userId, createdAt: {$gte: moment().startOf('month').toDate(), $lte: moment().endOf('month').toDate()}});
+        insights["likes_this_week"] = await Like.countDocuments({author: userId, createdAt: {$gte: moment().startOf('week').toDate(), $lte: moment().endOf('week').toDate()}});
+        insights["likes_this_month"] = await Like.countDocuments({author: userId, createdAt: {$gte: moment().startOf('month').toDate(), $lte: moment().endOf('month').toDate()}});
+        insights["comments_this_week"] = await Comment.countDocuments({author: userId, createdAt: {$gte: moment().startOf('week').toDate(), $lte: moment().endOf('week').toDate()}});
+        insights["comments_this_month"] = await Comment.countDocuments({author: userId, createdAt: {$gte: moment().startOf('month').toDate(), $lte: moment().endOf('month').toDate()}});
+        insights["profile_views_this_month"] = this.profile_views_this_month;
+        return insights;
+      } catch (err) {
+        console.error(err.message);
+        throw new APIError({
+          message: 'Something went wrong',
+          status: 500
+        })
       }
     }
 });
@@ -251,7 +324,7 @@ userSchema.statics = {
 
     throw new APIError({
       message: 'User does not exist',
-      status: httpStatus.NOT_FOUND,
+      status: 404,
     });
   },
 
@@ -317,9 +390,23 @@ userSchema.statics = {
       .limit(perPage)
       .exec();
   },
-
   
 };
 
 const User = mongoose.model('User',userSchema);
+
+try {
+  cron.schedule(
+    '0 0 0 1 * *',
+    async () => {
+      await User.updateMany({}, { profile_views_this_month: 0});
+    },
+    {
+        scheduled: true
+    }
+  )
+} catch (error) {
+  console.error(error);
+}
+
 module.exports = User;

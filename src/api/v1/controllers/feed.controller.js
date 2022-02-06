@@ -16,6 +16,12 @@ const getFeed = async (req,res,next) => {
             .skip(skip)
             .limit(limit)
             .exec();
+        posts.map(async (post) => {
+            post.engagement_this_month = post.engagement_this_month + 1;
+            post.engagement_this_week = post.engagement_this_week + 1;
+            await post.save();
+            return post;
+        });    
         return res.status(200).json({
             success: true,
             msg: "User Feed",
@@ -72,6 +78,12 @@ const getSuggestedFeed = async (req,res,next) => {
             [suggestedFeed[i], suggestedFeed[j]] = [suggestedFeed[j], suggestedFeed[i]];
         }
         suggestedFeed.slice(0, limit);
+        suggestedFeed.map(async (post) => {
+            post.engagement_this_month = post.engagement_this_month + 1;
+            post.engagement_this_week = post.engagement_this_week + 1;
+            await post.save();
+            return post;
+        });
         return res.status(200).json({
             success: true,
             msg: "User Suggested Feed",

@@ -18,6 +18,8 @@ router.route('/:id/unlike').post(authorize,controller.unlikePost);
 
 router.route('/:id/likes').get(authorize,controller.getAllLikes);  //All userIds nad usernames who liked the post
 
+router.route('/:id/insights').get(authorize,controller.getPostInsights);
+
 router.route('/:id').get(authorize,controller.getPost);
 
 router.route('/:id').put(authorize,validate(postBody),controller.editPost);

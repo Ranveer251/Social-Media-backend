@@ -1,4 +1,3 @@
-const FriendRequest = require("../models/friendRequest.model");
 const User = require("../models/user.model");
 
 const getProfile = async (req,res,next) => {
@@ -9,6 +8,10 @@ const getProfile = async (req,res,next) => {
             success: false,
             msg: "Invalid User Id"
         })
+        if(id.toString()!==req.userId.toString()){
+            user.profile_views_this_month++;
+            await user.save();
+        }
         let userTransformed = user;
         if(id!==req.userId && user.public===false && !user.friends.includes(req.userId)){
             userTransformed = {
@@ -145,6 +148,30 @@ const unblockUser = async (req,res,next) => {
     }
 }
 
+const getUserInsights = async (req,res,next) => {
+    try {
+        const {id} = req.params;
+        const user = await User.findById(id).exec();
+        if(!user) return res.status(400).json({
+            success: false,
+            msg: "Invalid User Id"
+        })
+        if(id.toString()!==req.userId.toString()) return res.status(400).json({
+            success: false,
+            msg: "Cannot get Insights of other users"
+        });
+        const insights = await user.getInsights();
+        return res.status(200).json({
+            success: true,
+            msg: "User Insights Returned",
+            profile: insights
+        })
+    }
+    catch (err) {
+        return next(err);
+    }
+}
+
 module.exports = {
     getProfile,
     editProfile,
@@ -152,4 +179,5 @@ module.exports = {
     blockUser,
     getAllBlockedUsers,
     unblockUser,
+    getUserInsights
 }

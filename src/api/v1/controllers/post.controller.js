@@ -25,7 +25,8 @@ const createOrSharePost = async (req,res,next) => {
             post.shared_count = post.shared_count + 1;
             await post.save();
         }
-        const post = await new Post(postData).save();
+        console.log(typeof Post);
+        let post = await new Post(postData).save();
         for await (let tag of hashtags ){
             tag = _.lowerCase(tag);
             const hashtag = await Hashtag.findOneAndUpdate({content: tag, user: req.userId},{$inc: {'count': 1}},{new: true,upsert:true}).exec();
@@ -36,7 +37,7 @@ const createOrSharePost = async (req,res,next) => {
             path: 'mentions',
             model: User,
             select: 'email show_notifications email_notifications'
-        }).execPopulate();
+        });
         const user = await User.findById(req.userId).populate({
             path: 'friends',
             model: User,
@@ -136,6 +137,14 @@ const getPost = async (req,res,next) => {
                 msg: "Not Permitted to see the post"
             })
         }
+        if(req.userId.toString() === post.author._id.toString() || friends.includes(ObjectId(req.userId))){
+            post.reach_this_month.friends = post.reach_this_month.friends + 1;
+            post.reach_this_week.friends = post.reach_this_week.friends + 1;
+        } else {
+            post.reach_this_month.non_friends = post.reach_this_month.non_friends + 1;
+            post.reach_this_week.non_friends = post.reach_this_week.non_friends + 1;
+        }
+        await post.save();
         return res.status(200).json({
             success: true,
             msg: "Got the Post",
@@ -299,15 +308,20 @@ const getAllMentions = async (req,res,next) => {
     }
 }
 
-
 const likePost = async (req,res,next) => {
     try {
         const postId = req.params.id;
-        const post = await Post.findById(postId).select('like_count hashtags').populate({
+        const post = await Post.findById(postId).select('like_count hashtags friends').populate({
             path: 'hashtags',
             model: Hashtag,
             select: 'content'
-        }).exec();
+        })
+        .populate({
+            path: 'friends',
+            model: User,
+            select: 'userName'
+        })
+        .exec();
         if(!post) return res.status(400).json({
             success: false,
             msg: "Invalid Post Id"
@@ -330,7 +344,14 @@ const likePost = async (req,res,next) => {
                 tag = _.lowerCase(tag);
                 await Hashtag.findOneAndUpdate({content: tag,user: req.userId},{count: {$inc: 1}}).exec();
             }
-
+            const friends = post.friends.map((el) => el._id);
+            if(req.userId.toString() === post.author._id.toString() || friends.includes(ObjectId(req.userId))){
+                post.engagement_this_month.friends = post.engagement_this_month.friends + 1;
+                post.engagement_this_week.friends = post.engagement_this_week.friends + 1;
+            } else {
+                post.engagement_this_month.non_friends = post.engagement_this_month.non_friends + 1;
+                post.engagement_this_week.non_friends = post.engagement_this_week.non_friends + 1;
+            }
             post.like_count = post.like_count + 1;
             await post.save();
             const friend = await User.findById(post.author).select('email show_notifications email_notifications').exec();
@@ -427,6 +448,26 @@ const getAllLikes = async (req,res,next) => {
     }
 }
 
+const getPostInsights = async (req,res,next) => {
+    try {
+        const postId = req.params.id;
+        const post = await Post.findById(postId).exec();
+        if(!post) return res.status(400).json({
+            success: false,
+            msg: "Invalid Post Id"
+        })
+        const insights = await post.getInsights();
+        return res.status(200).json({
+            success: true,
+            msg: "Post Insights",
+            post: insights
+        });
+    }
+    catch (err) {
+        return next(err);
+    }
+}
+
 module.exports = {
     createOrSharePost,
     getPost,
@@ -437,4 +478,5 @@ module.exports = {
     likePost,
     unlikePost,
     getAllLikes,
+    getPostInsights
 }

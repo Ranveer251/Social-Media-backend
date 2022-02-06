@@ -20,6 +20,8 @@ const postComment = async (req,res,next) => {
             msg: "Invalid Post Id"
         })
         post.comment_count = post.comment_count+1;
+        post.engagement_this_month = post.engagement_this_month+1;
+        post.engagement_this_week = post.engagement_this_week+1;
         await post.save();
         const comment = await new Comment({
             author: req.userId,
@@ -86,6 +88,8 @@ const replyComment = async (req,res,next) => {
             msg: "Invalid Comment Id, Parent comment not found"
         })
         post.comment_count = post.comment_count+1;
+        post.engagement_this_month = post.engagement_this_month+1;
+        post.engagement_this_week = post.engagement_this_week+1;
         await post.save();
         const comment = await new Comment({
             author: req.userId,

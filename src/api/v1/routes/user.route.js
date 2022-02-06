@@ -21,4 +21,6 @@ router.route('/:id').get(authorize,controller.getProfile);
 
 router.route('/:id').patch(authorize,validate(userProfile),controller.editProfile);
 
+router.route("/:id/insights").get(authorize,controller.getUserInsights);
+
 module.exports = router;
